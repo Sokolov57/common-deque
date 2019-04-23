@@ -3,6 +3,19 @@
 (in-package #:deque)
 
 
+(defclass deque (circular-buffer)
+ ((contents-size
+     :type integer
+     :accessor actsize
+     :initarg :size
+     :initform 0)))
+
+
+
+
+#||
+
+
 (defclass deque ()
  ((block-holder
    :type (simple-vector 128)
@@ -34,7 +47,6 @@
      :reader shrr
      :initform 3)))
 
-
 (defmethod initialize-instance :after ((deq deque) &key)
   (let* ((s (1+ (floor (actsize deq) 128)))
          (mid (floor s 2)))
@@ -46,7 +58,6 @@
    (iter (for i from 0 to (1- s))
      (setf (index (aref (home deq) i)) i))))
 
-(floor (1+ (floor (actsize deq) 128)) 2)
 
 
 (defgeneric show-deque (deq)
@@ -157,6 +168,19 @@
               (front newdeq) newfront (back newdeq) newback)))
    newdeq)))
 
+(defmethod expand-deque ((deq deque) &optional (fact 1.5))
+ (when (= (* 128 (vol deq)) (actsize deq))
+  (let* ((newsize (ceiling (* fact (vol deq))))
+         (newdeq (make-array (* 128 newsize))))
+    (multiple-value-bind (newfront oldfront newback) (equal-division newsize (vol deq))
+      (iter (for i from oldfront to (1- newback))
+        (setf (aref newdeq i) (aref (home deq) (- i oldfront))))
+     (iter (for i from 0 to (1- oldfront))
+       (setf (aref newdeq i) (make-instance 'dblock)))
+     (iter (for i from newback to (1- newsize))
+           (setf (aref newdeq i) (make-instance 'dblock)))
+     (setf (front deq) newfront (back deq) newback
+         (vol deq) newsize (home deq) newdeq)))))
 
 (defmethod peek-front ((deq deque))
  (let ((place (front (aref (home deq) (front deq)))))
@@ -187,7 +211,7 @@
 
 (defmethod pop-back ((deq deque))
  (when (> (* 128 (vol deq)) (* (shrr deq) (actsize deq)))
-  (setf deq (shrink-deque deq)))
+  (change-class deq (shrink-deque deq)))
  (let ((place (back (aref (home deq) (back deq))))
        (ret-val))
   (if (zerop place)
@@ -209,3 +233,4 @@
            (setf (aref (home newdeq) j) (aref (home deq) i)
                  (front newdeq) oldfront (back newdeq) (1- newback)))
        newdeq)))
+||#

@@ -8,4 +8,5 @@
   :serial t
   :depends-on (#:iterate)
   :components ((:file "package")
+               (:file "circular-buffer")
                (:file "deque")))

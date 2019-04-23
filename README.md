@@ -1,8 +1,7 @@
-# Common-deque
+# deque
+### _Andrew aun.sokolov@gmail.com_
 
-
-This simple project is a clone of [C++ std::deque](https://en.cppreference.com/w/cpp/container/deque).
-My intent was to mimic 
+This simple project is a clone of [C++ std::deque][dq].  My intent was to mimic
 it as close as possible, so the names of methods are the same and some technical
 details are identical when possible.
 It depends on `iterate` because I am planning to add an iterate clause for it.
@@ -14,8 +13,7 @@ No exceptions at all are implemented, which is No1 problem, I'm just not sure
 about how and where do I do this.
 
 
-#INTHEFARFUTURE
-
+#TODOINTHEFARFUTURE
 Make this a sequence sublass, look http://www.sbcl.org/manual/#Extensible-Sequences.
 Add an iterator protocol
-
+[dq]: https://en.cppreference.com/w/cpp/container/deque
