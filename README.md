@@ -6,7 +6,6 @@ it as close as possible, so the names of methods are the same and some technical
 details are identical when possible.
 It depends on `iterate` because I am planning to add an iterate clause for it.
 
-The only thing working at the moment is circular buffer.
 I'm planning to upgrade it
 to the point where it can actually be used by other people. A lot of repeating code,
 probably need macros, the style is also poor, some design stuff is questionable.
