@@ -13,7 +13,3 @@ probably need macros, the style is also poor, some design stuff is questionable.
 No exceptions at all are implemented, which is No1 problem, I'm just not sure
 about how and where do I do this.
 
-
-#INTHEFARFUTURE
-Make this a sequence sublass, look http://www.sbcl.org/manual/#Extensible-Sequences.
-Add an iterator protocol.
