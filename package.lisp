@@ -1,4 +1,4 @@
 ;;;; package.lisp
 
 (defpackage #:deque
-  (:use #:cl :iterate))
+  (:use #:cl #:iterate #:alexandria))

@@ -2,9 +2,10 @@
 
 (in-package #:deque)
 
+
 (defclass circular-buffer ()
  ((contents
-   :type (simple-vector *)
+   :type (vector *)
    :initform nil
    :accessor home)
   (front
@@ -14,7 +15,7 @@
   (back
      :type integer
      :accessor back
-     :initform 1)
+     :initform 0)
   (actual-size
      :type integer
      :accessor actsize
@@ -24,100 +25,135 @@
 (defmethod initialize-instance :after ((cirb circular-buffer)&key)
  (setf (home cirb) (make-array (max 2 (actsize cirb)) :initial-element nil) (actsize cirb) 0))
 
+(defmethod cb-print ((cirb circular-buffer))
+ (cbshow cirb)
+ (info cirb))
+
 (defmethod cbshow ((cirb circular-buffer))
- (format t "Contents: ~s ~%Front: ~s ~%Back: ~s ~%Actual-size ~s ~%" (home cirb) (front cirb) (back cirb) (actsize cirb)))
+ (format t "#CB( ")
+ (iter (for elem in-vector (home cirb))
+  (format t "~s " elem))
+ (format t ")~%"))
+
+(defmethod cb-coerce (seq)
+ (let* ((len (length seq))
+        (res (make-instance 'circular-buffer :size (1+ len))))
+     (setf (front res) (1- len) (back res) 0 (actsize res) len)
+     (iter (for i from 0 to (1- len))
+      (setf (aref (home res) i) (elt seq i)))
+  res))
+
+
+(defgeneric info (obj)
+ (:documentation "Shows all the slots, except for contents themselves"))
+
+(defmethod info ((cirb circular-buffer))
+ (format t "Front: ~s ~%Back: ~s ~%Actual-size ~s ~%" (front cirb) (back cirb) (actsize cirb)))
 
 (defmethod cbref ((cirb circular-buffer) index)
- (let ((displaced-index (+ (front cirb) index)))
-  (if (> displaced-index (back cirb))
-     (aref (home cirb) (- displaced-index (length (home cirb))))
-     (aref (home cirb) displaced-index))))
+ (with-slots (contents front actual-size) cirb
+  (if (<= index (1- actual-size))
+   (aref contents (mod (+ front index) (length contents))))))
 
-(defmethod (setf cbref) ((cirb circular-buffer) index newelem)
- (let ((displaced-index (+ (front cirb) index)))
-  (if (> displaced-index (back cirb))
-    (setf (aref (home cirb) (- displaced-index (length (home cirb)))) newelem)
-    (setf (aref (home cirb) displaced-index) newelem))))
+(defmethod update-circular-buffer-place ((cirb circular-buffer) index newelem)
+ (with-slots (contents front actual-size) cirb
+  (if (<= index (1- actual-size))
+   (setf (aref contents (mod (+ front index) (length contents))) newelem))))
+
+(defsetf cbref update-circular-buffer-place)
+
+(defmethod cbemptyp ((cirb circular-buffer))
+ (zerop (actsize cirb)))
+
+(defmethod cblength ((cirb circular-buffer))
+ (actsize cirb))
 
 (defgeneric ensure-capacity (cirb)
  (:documentation "Does the reallocation"))
 
-(defmethod push-elem ((cirb circular-buffer) newelem &key direction)
-  (when (= (length (home cirb)) (actsize cirb)) (extend-buffer cirb))
-  (multiple-value-bind (reader writer offset)
-      (ecase direction
-        (front (values #'front #'(setf front) -1))
-        (back (values #'back #'(setf back) +1)))
-   (setf (aref (home cirb) (funcall reader cirb)) newelem)
-   (funcall writer (mod (+ (funcall reader cirb) offset) (length (home cirb))) cirb))
- (incf (actsize cirb)))
-
-(defmethod pop-elem ((cirb circular-buffer) &key direction)
- (unless (zerop (actsize cirb))
-;;;;shrink probably
-  (when (> (length (home cirb)) (* 3 (actsize cirb)))
-   (shrink-buffer cirb))
-  (multiple-value-bind (reader writer offset)
-      (ecase direction
-        (front (values #'front #'(setf front) +1))
-        (back (values #'back #'(setf back) -1)))
-   (funcall writer (mod (+ (funcall reader cirb) offset) (length (home cirb))) cirb)
-   (prog1 (aref (home cirb) (funcall reader cirb))
-    (setf (aref (home cirb) (funcall reader cirb)) nil) (decf (actsize cirb))))))
-
 
 (defmethod push-front ((cirb circular-buffer) newelem)
- (push-elem cirb newelem :direction 'front))
+ (with-slots (contents front actual-size) cirb
+  (when (= (length contents) actual-size) (extend-buffer cirb))
+  (setf front (mod (1- front) (length contents))
+        (aref contents front) newelem)
+  (incf actual-size)))
 
 (defmethod push-back ((cirb circular-buffer) newelem)
- (push-elem cirb newelem :direction 'back))
-
-(defmethod peek-front ((cirb circular-buffer))
- (aref (home cirb) (mod (1+ (front cirb)) (length (home cirb)))))
-
-(defmethod peek-back ((cirb circular-buffer))
- (aref (home cirb) (mod (1- (back cirb)) (length (home cirb)))))
+ (with-slots (contents back actual-size) cirb
+  (when (= (length contents) actual-size) (extend-buffer cirb))
+  (setf back (mod (1+ back) (length contents))
+        (aref contents back) newelem)
+  (incf actual-size)))
 
 (defmethod pop-front ((cirb circular-buffer))
- (pop-elem cirb :direction 'front))
+ (with-slots (contents actual-size front) cirb
+  (unless (zerop actual-size)
+   (when (> (length contents) (* 3 actual-size))
+    (shrink-buffer cirb))
+   (prog1 (aref contents front)
+          (setf front (mod (1+ front) (length contents)))
+          (decf actual-size)))))
 
 (defmethod pop-back ((cirb circular-buffer))
- (pop-elem cirb :direction 'back))
+ (with-slots (contents actual-size back) cirb
+  (unless (zerop actual-size)
+   (when (> (length contents) (* 3 actual-size))
+    (shrink-buffer cirb))
+   (prog1 (aref contents back)
+          (setf back (mod (1- back) (length contents)))
+          (decf actual-size)))))
+
+(defmethod peek-front ((cirb circular-buffer))
+ (with-slots (contents front) cirb
+  (aref contents front)))
+
+(defmethod peek-back ((cirb circular-buffer))
+ (with-slots (contents back) cirb
+  (aref contents back)))
+
+
+(defmacro circle-iterate (front back contents &rest body)
+ `(let* ((len (length ,contents))
+         (first ,front)
+         (last ,back))
+    (if (<= first last)
+       (iter (for i from first to last)
+             (for element = (aref ,contents i))
+         ,@body)
+       (progn (iter (for i from first to (1- len))
+                    (for element = (aref ,contents i))
+               ,@body)
+              (iter (for i from 0 to last)
+                    (for element = (aref ,contents i))
+               ,@body)))))
 
 
 
-(defmacro iterate-elements (cirb &rest body)
- `(let ((first (mod (1+ (front ,cirb)) (length (home ,cirb))))
-        (last (mod (1- (back ,cirb)) (length (home ,cirb)))))
-   (if (<= first last)
-      (iter (for i from first to last)
-            (for element = (aref (home ,cirb) i))
-        ,@body)
-      (progn (iter (for i from first to (1- (length (home ,cirb))))
-                   (for element = (aref (home ,cirb) i))
-              ,@body)
-        (iter (for i from 0 to last)
-              (for element = (aref (home ,cirb) i))
-         ,@body)))))
+(defmethod shape-buffer ((cirb circular-buffer) newsize default-element)
+ (with-slots (contents front back) cirb
+  (let ((newhome (make-array newsize :initial-element nil))
+        (j 0))
+   (circle-iterate front back contents (setf (aref newhome j) element) (incf j))
+   (setf front 0 back (1- j))
+   (unless (= (1+ back) newsize)
+           (circle-iterate (mod (1+ back) newsize) (mod (1- front) newsize) newhome
+            (setf (aref newhome i) (and default-element (funcall default-element)))))
+   (setf contents newhome))))
 
 
-(defmethod shape-buffer ((cirb circular-buffer) newsize)
- (let ((newhome (make-array newsize :initial-element nil))
-       (j 0))
-  (iterate-elements cirb (setf (aref newhome j) element j (1+ j)))
-  (setf (front cirb) (1- newsize) (back cirb) j
-   (home cirb) newhome)))
-
-(defgeneric extend-buffer (cirb &optional fact)
+(defgeneric extend-buffer (cirb &optional fact with-default)
  (:documentation "Reallocates buffer, making it bigger. Triggers when actual size is equal
 to vector size, extends by factor given"))
 
-(defmethod extend-buffer ((cirb circular-buffer) &optional (fact 1.5))
- (shape-buffer cirb (ceiling (* fact (actsize cirb)))))
+(defmethod extend-buffer ((cirb circular-buffer) &optional (fact 2) (with-default nil))
+ (with-slots (actual-size) cirb
+  (shape-buffer cirb (ceiling (* fact actual-size)) with-default)))
 
-(defgeneric shrink-buffer (cirb)
+(defgeneric shrink-buffer (cirb &optional with-default)
  (:documentation "Reallocates buffer, making it smaller. Triggers when actual size is less
 then 1/3, shrink to the exact size"))
 
-(defmethod shrink-buffer ((cirb circular-buffer))
- (shape-buffer cirb (actsize cirb)))
+(defmethod shrink-buffer ((cirb circular-buffer) &optional (with-default nil))
+ (with-slots (actual-size) cirb
+  (shape-buffer cirb (* 2 actual-size) with-default)))

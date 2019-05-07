@@ -6,7 +6,7 @@
   :license  "Specify license here"
   :version "0.1.4"
   :serial t
-  :depends-on (#:iterate)
+  :depends-on (#:iterate #:alexandria)
   :components ((:file "package")
                (:file "circular-buffer")
                (:file "deque")))
